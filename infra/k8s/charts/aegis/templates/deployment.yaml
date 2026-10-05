@@ -1,0 +1,130 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-control-plane
+  labels:
+    app: aegis-control-plane
+spec:
+  replicas: {{ .Values.controlPlane.replicaCount }}
+  selector:
+    matchLabels:
+      app: aegis-control-plane
+  template:
+    metadata:
+      labels:
+        app: aegis-control-plane
+    spec:
+      containers:
+      - name: control-plane
+        image: "{{ .Values.controlPlane.image.repository }}:{{ .Values.controlPlane.image.tag }}"
+        imagePullPolicy: {{ .Values.controlPlane.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.controlPlane.service.port }}
+        env:
+        {{- range $key, $val := .Values.controlPlane.env }}
+        - name: {{ $key }}
+          value: {{ $val | quote }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.controlPlane.resources | nindent 10 }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.controlPlane.service.port }}
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      {{- if .Values.envoy.enabled }}
+      - name: envoy-sidecar
+        image: "{{ .Values.envoy.image.repository }}:{{ .Values.envoy.image.tag }}"
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: envoy-ingress
+          containerPort: 10000
+        - name: envoy-admin
+          containerPort: 9901
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-control-plane
+  labels:
+    app: aegis-control-plane
+spec:
+  type: {{ .Values.controlPlane.service.type }}
+  ports:
+  - port: {{ .Values.controlPlane.service.port }}
+    targetPort: {{ .Values.controlPlane.service.port }}
+  selector:
+    app: aegis-control-plane
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-data-plane
+  labels:
+    app: aegis-data-plane
+spec:
+  replicas: {{ .Values.dataPlane.replicaCount }}
+  selector:
+    matchLabels:
+      app: aegis-data-plane
+  template:
+    metadata:
+      labels:
+        app: aegis-data-plane
+    spec:
+      {{- if .Values.dataPlane.runtimeClassName }}
+      runtimeClassName: {{ .Values.dataPlane.runtimeClassName }}
+      {{- end }}
+      containers:
+      - name: data-plane
+        image: "{{ .Values.dataPlane.image.repository }}:{{ .Values.dataPlane.image.tag }}"
+        imagePullPolicy: {{ .Values.dataPlane.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.dataPlane.service.port }}
+        env:
+        {{- range $key, $val := .Values.dataPlane.env }}
+        - name: {{ $key }}
+          value: {{ $val | quote }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.dataPlane.resources | nindent 10 }}
+      {{- if .Values.envoy.enabled }}
+      - name: envoy-sidecar
+        image: "{{ .Values.envoy.image.repository }}:{{ .Values.envoy.image.tag }}"
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: envoy-ingress
+          containerPort: 10001
+        - name: envoy-admin
+          containerPort: 9902
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-data-plane
+  labels:
+    app: aegis-data-plane
+spec:
+  type: {{ .Values.dataPlane.service.type }}
+  ports:
+  - port: {{ .Values.dataPlane.service.port }}
+    targetPort: {{ .Values.dataPlane.service.port }}
+  selector:
+    app: aegis-data-plane

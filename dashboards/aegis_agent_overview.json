@@ -13,6 +13,25 @@
     "refreshInterval": "10s",
     "variables": [
       {
+        "kind": "ListVariable",
+        "spec": {
+          "name": "project",
+          "default_value": "all",
+          "allow_all_value": true,
+          "values": [
+            "all",
+            "aegis-mcp-control-plane",
+            "semper-ai",
+            "vault",
+            "sandbox-tooling"
+          ],
+          "display": {
+            "name": "Project",
+            "description": "Filter telemetry by target project workspace"
+          }
+        }
+      },
+      {
         "kind": "TextVariable",
         "spec": {
           "name": "cost_centre",
@@ -124,6 +143,37 @@
               "height": 8,
               "content": {
                 "$ref": "spec/panels/multi-agent-delegation-rate"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "Grid",
+        "spec": {
+          "display": {
+            "title": "Multi-Project Agent Hierarchy & Delegation Telemetry",
+            "collapse": {
+              "open": true
+            }
+          },
+          "items": [
+            {
+              "x": 0,
+              "y": 24,
+              "width": 12,
+              "height": 8,
+              "content": {
+                "$ref": "spec/panels/multi-project-agent-hierarchy-bottlenecks"
+              }
+            },
+            {
+              "x": 12,
+              "y": 24,
+              "width": 12,
+              "height": 8,
+              "content": {
+                "$ref": "spec/panels/multi-agent-delegation-waterfall"
               }
             }
           ]
@@ -296,6 +346,58 @@
                   "kind": "LogfireTimeSeriesQuery",
                   "spec": {
                     "query": "SELECT time_bucket(interval '1 minute', start_timestamp) AS time, concat(attributes->>'caller_agent_id', ' -> ', attributes->>'target_agent_id') AS delegation_flow, count(*) AS handoffs FROM records WHERE span_name = 'orchestrator.handoff' GROUP BY time, delegation_flow ORDER BY time"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "multi-project-agent-hierarchy-bottlenecks": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Multi-Project Agent Hierarchy & Bottlenecks",
+            "description": "Cross-project agent execution duration, P95 bottlenecks, and token consumption"
+          },
+          "plugin": {
+            "kind": "Table",
+            "spec": {}
+          },
+          "queries": [
+            {
+              "kind": "NonTimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireNonTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT attributes->>'project.name' AS project_name, attributes->>'gen_ai.agent.name' AS agent_name, count(*) AS total_invocations, avg(duration) AS avg_duration_sec, percentile_cont(0.95) WITHIN GROUP (ORDER BY duration) AS p95_duration_sec, sum(CAST(coalesce(attributes->>'prompt_tokens', '0') AS BIGINT) + CAST(coalesce(attributes->>'completion_tokens', '0') AS BIGINT)) AS total_tokens FROM records WHERE span_name = 'invoke_agent' AND ($project = 'all' OR attributes->>'project.name' = $project) GROUP BY project_name, agent_name ORDER BY total_tokens DESC LIMIT 50"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "multi-agent-delegation-waterfall": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Multi-Agent Delegation Waterfall",
+            "description": "Latency and volume tracking across parent-to-subagent delegation flows"
+          },
+          "plugin": {
+            "kind": "Table",
+            "spec": {}
+          },
+          "queries": [
+            {
+              "kind": "NonTimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireNonTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT attributes->>'project.name' AS project_name, attributes->>'delegation_flow' AS delegation_flow, count(*) AS delegation_count, avg(duration) AS avg_latency_sec, max(duration) AS max_latency_sec FROM records WHERE span_name = 'invoke_agent' AND attributes->>'delegation_flow' IS NOT NULL AND ($project = 'all' OR attributes->>'project.name' = $project) GROUP BY project_name, delegation_flow ORDER BY delegation_count DESC LIMIT 50"
                   }
                 }
               }

@@ -22,6 +22,7 @@ except ImportError:
     monty = None
 
 from src.config import resolve_tools_dir
+from src.data_plane.gvisor_runner import EphemeralGVisorRunner, GVisorRunnerConfig
 from src.data_plane.schemas import (
     EXECUTE_CODE_TOOL_SCHEMA,
     DataPlaneUserContext,
@@ -216,11 +217,19 @@ class LocalToolDispatcher:
         tools_dir: str | Path | None = None,
         timeout_seconds: float | None = None,
         sandbox_runner: DataPlaneSandboxRunner | None = None,
+        ephemeral_runner: EphemeralGVisorRunner | None = None,
     ):
         self.tools_dir = Path(resolve_tools_dir(tools_dir))
         self.timeout_seconds = timeout_seconds or DEFAULT_TIMEOUT
         self.sandbox_runner = sandbox_runner or DataPlaneSandboxRunner(
             timeout_seconds=self.timeout_seconds
+        )
+        self.ephemeral_runner = ephemeral_runner or EphemeralGVisorRunner(
+            config=GVisorRunnerConfig(
+                read_only_rootfs=True,
+                timeout_seconds=self.timeout_seconds,
+            ),
+            tools_dir=self.tools_dir,
         )
         self._cached_catalog: list[dict[str, Any]] | None = None
         self._last_mtime: float = 0.0
@@ -345,9 +354,36 @@ class LocalToolDispatcher:
                 }
 
             if target_path.exists():
-                return await self._execute_subprocess(
-                    tool_name, str(target_path), args, start_time
+                res = await self.ephemeral_runner.execute_tool(
+                    tool_name=tool_name,
+                    arguments=args,
+                    user_context=user_context,
+                    entrypoint_path=str(target_path),
                 )
+                duration_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
+                if res.get("status") == "error":
+                    err_code = res.get("error_code")
+                    if err_code is None or err_code == -32000:
+                        # -32000 timeouts translate to -32603 internal error for json-rpc unless specific
+                        err_code = -32603
+                    return {
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": err_code,
+                            "message": res.get("error", "Tool execution error"),
+                        },
+                    }
+                out_val = res.get("result", res)
+                return {
+                    "jsonrpc": "2.0",
+                    "result": {
+                        "tool_name": tool_name,
+                        "status": "SUCCESS",
+                        "execution_time_ms": duration_ms,
+                        "output": out_val,
+                        "content": [{"type": "text", "text": str(out_val)}],
+                    },
+                }
 
         return {
             "jsonrpc": "2.0",

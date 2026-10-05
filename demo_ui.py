@@ -10,6 +10,7 @@ import asyncio
 import json
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -25,8 +26,11 @@ from src.control_plane.schemas import (
     ModelFailoverPolicy,
     UserContext,
 )
+from src.data_plane.gvisor_runner import EphemeralGVisorRunner
 from src.data_plane.schemas import DataPlaneUserContext
 from src.data_plane.worker import DataPlaneSandboxRunner, LocalToolDispatcher
+from src.memory.schemas import EpisodicMemoryRecord, MemoryQueryRequest
+from src.memory.store import InMemoryVectorMemoryStore
 from src.orchestrator.registry import default_registry
 from src.orchestrator.runtime import default_orchestrator
 from src.orchestrator.schemas import (
@@ -35,6 +39,9 @@ from src.orchestrator.schemas import (
     AgentSpec,
     AgentStepArtifact,
     AgentTopology,
+)
+from src.orchestrator.telemetry_enricher import (
+    enrich_session_record,
 )
 
 
@@ -222,15 +229,30 @@ with st.sidebar:
     })
 
 # Tabs for Capabilities
-tab_orchestrator, tab_perses, tab_llm_proxy, tab_opa_policy, tab_tools, tab_sandbox, tab_autofix, tab_quiz = st.tabs([
+(
+    tab_orchestrator,
+    tab_hierarchy_bottlenecks,
+    tab_perses,
+    tab_llm_proxy,
+    tab_opa_policy,
+    tab_tools,
+    tab_sandbox,
+    tab_gvisor,
+    tab_memory,
+    tab_autofix,
+    tab_quiz,
+) = st.tabs([
     "🤖 Multi-Agent Orchestrator",
+    "🌐 Multi-Project Hierarchy & Bottlenecks",
     "📊 Perses Observability & Cost Centre Audit",
     "🌐 LLM Proxy & AI Gateway",
     "🛡️ OPA Policy Compliance Gates",
     "📦 Dynamic Tool Dispatcher",
     "⚡ Python Code Sandbox",
+    "🔒 gVisor Downscoped Sandbox",
+    "🧠 Vector Episodic Memory",
     "🧪 Self-Healing Test Harness",
-    "🧠 Architecture Quiz",
+    "📝 Architecture Quiz",
 ])
 
 # -------------------------------------------------------------
@@ -597,7 +619,195 @@ with tab_orchestrator:
                 st.json(ws.model_dump())
 
 # -------------------------------------------------------------
-# TAB 2: Perses Observability & Cost Centre Audit
+# TAB 2: Multi-Project Hierarchy & Bottlenecks
+# -------------------------------------------------------------
+with tab_hierarchy_bottlenecks:
+    st.subheader("🌐 Multi-Project Agent Hierarchy & Bottlenecks")
+    st.markdown(
+        """
+        Observability view across projects simulating root agent `@architect` and its
+        delegated subagents (`@tdd-builder`, `@test-engineer`, `@ux-designer`, `@code-reviewer`, `@microworld-dev`).
+        Inspect 4-tuple URN identity propagation, delegation graphs, and P95 latency / token consumption bottlenecks.
+        """
+    )
+
+    # 1. Project Selector
+    col_proj1, col_proj2 = st.columns([1, 2])
+    with col_proj1:
+        selected_project = st.selectbox(
+            "Target Project Workspace",
+            options=["All", "aegis-mcp-control-plane", "semper-ai", "vault"],
+            index=0,
+            help="Filter multi-project hierarchy and bottlenecks by workspace.",
+        )
+    with col_proj2:
+        actor_input = st.text_input(
+            "Attributed Actor",
+            value="markmcnaught",
+            help="Actor identity propagated across root and subagent 4-tuple URNs.",
+        )
+
+    # Simulated Multi-Project Spans
+    simulated_spans = [
+        {
+            "project": "aegis-mcp-control-plane",
+            "session_id": "sess-aegis-001",
+            "title": "Dual-gate TDD backend implementation (@tdd-builder subagent)",
+            "subagent": "tdd-builder",
+            "p95_ms": 1420.0,
+            "tokens": 42500,
+            "sla_target_ms": 1200.0,
+            "token_budget": 50000,
+        },
+        {
+            "project": "aegis-mcp-control-plane",
+            "session_id": "sess-aegis-002",
+            "title": "Comprehensive E2E contract verification (@test-engineer subagent)",
+            "subagent": "test-engineer",
+            "p95_ms": 860.0,
+            "tokens": 19400,
+            "sla_target_ms": 1000.0,
+            "token_budget": 30000,
+        },
+        {
+            "project": "aegis-mcp-control-plane",
+            "session_id": "sess-aegis-003",
+            "title": "Interactive sandbox verification harness (@microworld-dev subagent)",
+            "subagent": "microworld-dev",
+            "p95_ms": 610.0,
+            "tokens": 14200,
+            "sla_target_ms": 800.0,
+            "token_budget": 25000,
+        },
+        {
+            "project": "semper-ai",
+            "session_id": "sess-semper-101",
+            "title": "State matrix & WCAG accessibility contract (@ux-designer subagent)",
+            "subagent": "ux-designer",
+            "p95_ms": 520.0,
+            "tokens": 11800,
+            "sla_target_ms": 600.0,
+            "token_budget": 20000,
+        },
+        {
+            "project": "semper-ai",
+            "session_id": "sess-semper-102",
+            "title": "Strict invariant diff audit & review (@code-reviewer subagent)",
+            "subagent": "code-reviewer",
+            "p95_ms": 1850.0,
+            "tokens": 68200,
+            "sla_target_ms": 1000.0,
+            "token_budget": 40000,
+        },
+        {
+            "project": "vault",
+            "session_id": "sess-vault-201",
+            "title": "Global skills SSOT sync and catalog validation (@architect)",
+            "subagent": None,
+            "p95_ms": 410.0,
+            "tokens": 8900,
+            "sla_target_ms": 500.0,
+            "token_budget": 15000,
+        },
+    ]
+
+    # Filter spans by selected project
+    filtered_spans = [
+        s for s in simulated_spans
+        if selected_project == "All" or s["project"] == selected_project
+    ]
+
+    # 2. Visual Hierarchy Graph Simulator
+    with st.expander("🌲 Visual Multi-Agent Hierarchy & Delegation Graph", expanded=True):
+        st.markdown("#### Hierarchy Flow: Root `@architect` ➔ Delegated Subagents")
+        st.markdown(
+            """
+```
+                           ┌──────────────────────────────────────────────┐
+                           │          ROOT AGENT: @architect              │
+                           │  Role: Decomposition, TDD Gate Orchestration │
+                           └──────────────────────┬───────────────────────┘
+            ┌──────────────────┬──────────────────┼──────────────────┬──────────────────┐
+            ▼                  ▼                  ▼                  ▼                  ▼
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+│  @tdd-builder    │ │  @test-engineer  │ │   @ux-designer   │ │  @code-reviewer  │ │ @microworld-dev  │
+│  Domain Logic &  │ │  Unit, Contract, │ │  Interaction,    │ │  Diff Audit,     │ │ In-Process Test  │
+│  API Schemas     │ │  E2E Test Suites │ │  WCAG Contracts  │ │  Invariants Gate │ │ Benches (Stream) │
+│  (src/, pkg/)    │ │  (tests/)        │ │  (edit: deny)    │ │  (Linter & TDD)  │ │ (demo_ui.py)     │
+└──────────────────┘ └──────────────────┘ └──────────────────┘ └──────────────────┘ └──────────────────┘
+```
+            """
+        )
+        st.caption(
+            "In accordance with ~/vault/AGENTS.md, `@architect` delegates to specialized subagents. "
+            "Role boundaries strictly forbid subagents from mutating out-of-scope files."
+        )
+
+    # 3. 4-Tuple URN Readout
+    st.subheader("🔑 4-Tuple Identity & URN Attribution Readout")
+    st.markdown(
+        "Standardized format: `urn:aegis:agent:{actor}:{agent}:{project}:{session_id}` "
+        "synthesized via `src.orchestrator.telemetry_enricher`."
+    )
+
+    urn_records = []
+    for s in filtered_spans:
+        enriched = enrich_session_record(
+            session_id=s["session_id"],
+            session_directory=f"/home/{actor_input}/{s['project']}",
+            session_title=s["title"],
+            actor_id=actor_input,
+            default_agent_id="architect",
+        )
+        urn_records.append({
+            "Project": enriched.project_name,
+            "Agent": f"@{enriched.agent_id}",
+            "Parent Agent": f"@{enriched.parent_agent_id}" if enriched.parent_agent_id else "None (Root)",
+            "Delegation Flow": enriched.delegation_flow or "Root Execution",
+            "Canonical Aegis URN": enriched.urn,
+        })
+
+    st.dataframe(pd.DataFrame(urn_records), width="stretch", hide_index=True)
+
+    # 4. Bottlenecks & SLA Analysis
+    st.subheader("⏱️ P95 Latency & Token Breakdown Bottlenecks")
+    st.markdown(
+        "Telemetry diagnostics pinpointing subagents exceeding target SLA latencies or consuming excessive tokens."
+    )
+
+    metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+    total_tokens = sum(s["tokens"] for s in filtered_spans)
+    avg_p95 = sum(s["p95_ms"] for s in filtered_spans) / max(len(filtered_spans), 1)
+    bottleneck_count = sum(1 for s in filtered_spans if s["p95_ms"] > s["sla_target_ms"] or s["tokens"] > s["token_budget"])
+
+    with metrics_col1:
+        st.metric("Total Tokens Consumed", f"{total_tokens:,}")
+    with metrics_col2:
+        st.metric("Average P95 Latency", f"{avg_p95:.1f} ms")
+    with metrics_col3:
+        st.metric("Flagged Bottlenecks", str(bottleneck_count), delta=f"{bottleneck_count} alerts" if bottleneck_count > 0 else "0", delta_color="inverse")
+
+    bottleneck_rows = []
+    for s in filtered_spans:
+        is_latency_viol = s["p95_ms"] > s["sla_target_ms"]
+        is_token_viol = s["tokens"] > s["token_budget"]
+        status = "⚠️ SLA BREACH" if (is_latency_viol or is_token_viol) else "✅ NOMINAL"
+
+        bottleneck_rows.append({
+            "Project": s["project"],
+            "Agent": f"@{s['subagent']}" if s["subagent"] else "@architect (root)",
+            "P95 Latency (ms)": f"{s['p95_ms']:.1f}",
+            "Target SLA (ms)": f"{s['sla_target_ms']:.1f}",
+            "Latency Ratio": f"{(s['p95_ms'] / s['sla_target_ms']):.2f}x",
+            "Token Consumption": f"{s['tokens']:,}",
+            "Token Budget": f"{s['token_budget']:,}",
+            "Health Status": status,
+        })
+
+    st.dataframe(pd.DataFrame(bottleneck_rows), width="stretch", hide_index=True)
+
+# -------------------------------------------------------------
+# TAB 3: Perses Observability & Cost Centre Audit
 # -------------------------------------------------------------
 with tab_perses:
     st.subheader("📊 Perses Observability & Cost Centre Audit")
@@ -1140,7 +1350,423 @@ with tab_sandbox:
             st.json(exec_result)
 
 # -------------------------------------------------------------
-# TAB 7: Self-Healing Test Harness
+# TAB 7: gVisor Downscoped Micro-Sandbox
+# -------------------------------------------------------------
+with tab_gvisor:
+    st.subheader("🔒 gVisor Downscoped Micro-Sandbox & Isolated Runner")
+    st.markdown(
+        """
+        Interactive verification harness for `EphemeralGVisorRunner`.
+        Simulates Monty sandboxed code invoking tools through OPA pre-gating,
+        downscoped scope permission enforcement, ephemeral scratch directory isolation,
+        and read-only rootfs invariants.
+        """
+    )
+
+    with st.expander("🏛️ Ephemeral Downscoped Sandbox Architecture", expanded=True):
+        st.markdown(
+            """
+```
+┌────────────────────────────────────────────────────────┐
+│ IN-PROCESS MONTY SANDBOX / AGENT LOGIC                 │
+│ Python Code Mode / Tool Call Dispatch                  │
+└──────────────────────────┬─────────────────────────────┘
+                           │ 1. Invokes tool via EphemeralGVisorRunner
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ SCOPE PERMISSION GATE (tools:execute / granular)       │
+│ Missing / mismatched scope -> REJECT (-32003)          │
+└──────────────────────────┬─────────────────────────────┘
+                           │ 2. Scopes verified
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ OPA PRE-GATING POLICY ENGINE                           │
+│ Evaluates arguments, matrix dimensions, caller role   │
+└──────────────────────────┬─────────────────────────────┘
+                           │ 3. Policy ALLOW
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ READ-ONLY ROOTFS ENFORCEMENT                           │
+│ Writes outside ephemeral scratch dir -> REJECT (-32000)│
+└──────────────────────────┬─────────────────────────────┘
+                           │ 4. Scratch dir allocated (/tmp/aegis_gvisor_*)
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│ EPHEMERAL ISOLATION LIFECYCLE (async with spawn())     │
+│ Isolated execution -> Auto-cleanup on exit (shutil)    │
+└────────────────────────────────────────────────────────┘
+```
+            """
+        )
+
+    col_gv_cfg, col_gv_run = st.columns([1, 1])
+
+    with col_gv_cfg:
+        st.markdown("### ⚙️ Sandbox & Scope Configuration")
+
+        scope_mode = st.radio(
+            "Caller Tool Scope Mode",
+            options=[
+                "Standard Scope (`tools:execute`)",
+                "Granular Downscoped Scope (`tools:execute:vector_dot_product`)",
+                "Wildcard Scope (`tools:execute:all`)",
+                "Mismatched Scope (`tools:execute:matrix_mult`)",
+                "Missing Scope (Empty `[]`)",
+            ],
+            index=0,
+            help="Configures scopes assigned to the calling context",
+        )
+
+        scope_mapping = {
+            "Standard Scope (`tools:execute`)": ["tools:execute"],
+            "Granular Downscoped Scope (`tools:execute:vector_dot_product`)": ["tools:execute:vector_dot_product"],
+            "Wildcard Scope (`tools:execute:all`)": ["tools:execute:all"],
+            "Mismatched Scope (`tools:execute:matrix_mult`)": ["tools:execute:matrix_mult"],
+            "Missing Scope (Empty `[]`)": [],
+        }
+        active_gv_scopes = scope_mapping[scope_mode]
+
+        enable_read_only_rootfs = st.checkbox(
+            "Enforce Read-Only Root Filesystem (`read_only_rootfs=True`)",
+            value=True,
+            help="When enabled, any filesystem writes targeting non-scratch paths are rejected immediately.",
+        )
+
+        gv_timeout = st.slider(
+            "Sandbox Execution Timeout (seconds)",
+            min_value=0.1,
+            max_value=10.0,
+            value=2.0,
+            step=0.1,
+        )
+
+        enable_opa_gating = st.checkbox("Enable OPA Pre-Gating Engine", value=True)
+
+    with col_gv_run:
+        st.markdown("### 🧪 Simulation Execution Setup")
+
+        tool_simulation_choice = st.selectbox(
+            "Simulated Tool to Invoke",
+            options=[
+                "vector_dot_product (In-process math kernel)",
+                "write_file: Unauthorized Rootfs Write (`/etc/injected.sh`)",
+                "write_file: Permitted Ephemeral Scratch Write",
+                "sleep_loop: Timeout Trigger Injection",
+            ],
+            index=0,
+        )
+
+        st.caption("Inspect tool parameters and simulated Monty Python code wrapper:")
+
+        if tool_simulation_choice.startswith("vector_dot_product"):
+            sim_tool_name = "vector_dot_product"
+            sim_args = {"vec_a": [1.0, 2.5, 4.0], "vec_b": [3.0, 2.0, 1.5]}
+            sim_code = (
+                "# Monty in-process execution calling downscoped tool\n"
+                "vec_a = [1.0, 2.5, 4.0]\n"
+                "vec_b = [3.0, 2.0, 1.5]\n"
+                "result = await runner.execute_tool('vector_dot_product', {'vec_a': vec_a, 'vec_b': vec_b})"
+            )
+        elif "Unauthorized Rootfs" in tool_simulation_choice:
+            sim_tool_name = "write_file"
+            sim_args = {"path": "/etc/injected_payload.sh", "content": "echo 'unauthorized'"}
+            sim_code = (
+                "# Malicious write targeting read-only rootfs\n"
+                "payload = {'path': '/etc/injected_payload.sh', 'content': 'pwn'}\n"
+                "result = await runner.execute_tool('write_file', payload)"
+            )
+        elif "Permitted Ephemeral" in tool_simulation_choice:
+            sim_tool_name = "write_file"
+            sim_args = {"path": "__SCRATCH__/artifact.txt", "content": "Aegis verified ephemeral payload"}
+            sim_code = (
+                "# Legitimate write targeting ephemeral scratch directory\n"
+                "scratch_file = runner.scratch_dir / 'artifact.txt'\n"
+                "result = await runner.execute_tool('write_file', {'path': str(scratch_file), 'content': 'ok'})"
+            )
+        else:
+            sim_tool_name = "sleep_loop"
+            sim_args = {"duration": 3.0}
+            sim_code = (
+                "# Intentional timeout exceeding runner bound\n"
+                "result = await runner.execute_tool('sleep_loop', {'duration': 3.0})"
+            )
+
+        st.code(sim_code, language="python")
+
+        if st.button("🚀 Run gVisor Ephemeral Tool Execution"):
+            policy_engine_inst = OPAPolicyEngine() if enable_opa_gating else None
+            runner_inst = EphemeralGVisorRunner(
+                read_only_rootfs=enable_read_only_rootfs,
+                timeout_seconds=gv_timeout,
+                policy_engine=policy_engine_inst,
+            )
+
+            test_user_ctx = DataPlaneUserContext(
+                user_id=actor_id,
+                role=user_role,
+                scopes=active_gv_scopes,
+            )
+
+            with logfire.span(
+                "microworld.gvisor_runner_eval",
+                tool=sim_tool_name,
+                scope_mode=scope_mode,
+                read_only=enable_read_only_rootfs,
+            ):
+                # If scratch path placeholder used, pre-spawn to get scratch_dir
+                if sim_args.get("path") == "__SCRATCH__/artifact.txt":
+                    async def _run_scratch():
+                        async with runner_inst.spawn() as instance:
+                            scratch_target = instance.scratch_dir / "artifact.txt"
+                            return await instance.execute_tool(
+                                tool_name=sim_tool_name,
+                                arguments={"path": str(scratch_target), "content": sim_args.get("content", "")},
+                                user_context=test_user_ctx,
+                            ), str(instance.scratch_dir)
+                    gv_result, allocated_scratch = asyncio.run(_run_scratch())
+                else:
+                    allocated_scratch = "Allocated & torn down during spawn()"
+                    gv_result = asyncio.run(
+                        runner_inst.execute_tool(
+                            tool_name=sim_tool_name,
+                            arguments=sim_args,
+                            user_context=test_user_ctx,
+                        )
+                    )
+
+            st.session_state["gv_last_result"] = gv_result
+            st.session_state["gv_tool_name"] = sim_tool_name
+            st.session_state["gv_scopes"] = active_gv_scopes
+            st.session_state["gv_ro"] = enable_read_only_rootfs
+            st.session_state["gv_scratch"] = allocated_scratch
+
+    if "gv_last_result" in st.session_state:
+        st.divider()
+        st.subheader("📊 gVisor Sandbox Execution Readout")
+        res = st.session_state["gv_last_result"]
+
+        c_g1, c_g2, c_g3, c_g4 = st.columns(4)
+        status_val = res.get("status", "unknown").upper()
+        if status_val == "SUCCESS":
+            c_g1.metric("Execution Status", "✅ SUCCESS")
+        else:
+            c_g1.metric("Execution Status", "🚫 DENIED / ERROR")
+
+        c_g2.metric("Tool Requested", st.session_state.get("gv_tool_name", "N/A"))
+        c_g3.metric("RootFS Enforced", "🔒 Read-Only" if st.session_state.get("gv_ro") else "🔓 Read-Write")
+        c_g4.metric("Active Scopes", str(st.session_state.get("gv_scopes", [])))
+
+        col_left, col_right = st.columns([1, 1])
+        with col_left:
+            st.markdown("#### 🛡️ Pre-Gating & Enforcement Diagnostics")
+            diagnostic_rows = [
+                {
+                    "Enforcement Gate": "1. Scope Check",
+                    "Verdict": "✅ Granted" if status_val == "SUCCESS" or "missing scope" not in str(res.get("error", "")).lower() else "❌ Denied (-32003)",
+                    "Detail": f"Scopes: {st.session_state.get('gv_scopes')}",
+                },
+                {
+                    "Enforcement Gate": "2. OPA Pre-Gating",
+                    "Verdict": "✅ Passed" if "denied by opa" not in str(res.get("error", "")).lower() else "❌ Policy Denied (-32003)",
+                    "Detail": "Policy rules evaluated prior to runner spawn",
+                },
+                {
+                    "Enforcement Gate": "3. Read-Only Rootfs",
+                    "Verdict": "✅ Protected" if "read-only" not in str(res.get("error", "")).lower() else "❌ Blocked Write (-32000)",
+                    "Detail": f"Enforce RO: {st.session_state.get('gv_ro')}",
+                },
+                {
+                    "Enforcement Gate": "4. Ephemeral Scratch Lifecycle",
+                    "Verdict": "✅ Cleaned up",
+                    "Detail": "Auto-destroyed via shutil.rmtree() on context exit",
+                },
+            ]
+            st.dataframe(pd.DataFrame(diagnostic_rows), width="stretch", hide_index=True)
+
+        with col_right:
+            st.markdown("#### 📄 Execution Result Payload")
+            st.json(res)
+
+
+# -------------------------------------------------------------
+# TAB 8: Vector Episodic Memory Store
+# -------------------------------------------------------------
+with tab_memory:
+    st.subheader("🧠 Vector Episodic Memory Store & Cosine Similarity Ranking")
+    st.markdown(
+        """
+        Interactive visualizer for `InMemoryVectorMemoryStore`.
+        Allows human engineers to inspect immutable episodic execution records (`EpisodicMemoryRecord`),
+        insert custom test vectors with metadata and 4-tuple attribution, and run ranked cosine similarity queries.
+        """
+    )
+
+    # Initialize shared memory store in session state if missing
+    if "episodic_memory_store" not in st.session_state:
+        shared_store = InMemoryVectorMemoryStore()
+
+        # Seed realistic benchmark and profiler execution episodes
+        initial_records = [
+            EpisodicMemoryRecord(
+                memory_id="ep_neoverse_v2_gemm",
+                actor_id="usr_silicon_dev_01",
+                agent_id="SiliconBenchmarkLead",
+                cost_centre_id="cc_silicon_eng",
+                session_id="sess_gemm_001",
+                task_prompt="Run GEMM fp16 kernel benchmarks on Neoverse-V2 with 32 FLOPs/cycle",
+                final_outcome="Achieved 128.4 TFLOPS (98.2% peak). Roofline bound: compute limited.",
+                embedding=[0.95, 0.28, 0.12, 0.05],
+                created_at=datetime.now(UTC),
+                metadata={"tool": "profile_tensor_kernel", "duration_ms": 142.5, "tags": ["gemm", "fp16", "neoverse"]},
+            ),
+            EpisodicMemoryRecord(
+                memory_id="ep_hbm3_bandwidth_audit",
+                actor_id="usr_silicon_dev_01",
+                agent_id="RooflineAuditor",
+                cost_centre_id="cc_silicon_eng",
+                session_id="sess_hbm_002",
+                task_prompt="Audit HBM3 operational memory bandwidth saturation under stream copy kernel",
+                final_outcome="Bandwidth locked at 812 GB/s. Arithmetic intensity: 0.12 FLOP/Byte.",
+                embedding=[0.15, 0.94, 0.30, 0.08],
+                created_at=datetime.now(UTC),
+                metadata={"tool": "get_accelerator_specs", "duration_ms": 68.2, "tags": ["bandwidth", "hbm3", "stream"]},
+            ),
+            EpisodicMemoryRecord(
+                memory_id="ep_ts_ast_type_check",
+                actor_id="usr_silicon_dev_01",
+                agent_id="TSSafetyVerifier",
+                cost_centre_id="cc_silicon_eng",
+                session_id="sess_ts_003",
+                task_prompt="Verify TypeScript type soundness and AST buffer bounds for 2048x2048 matrix",
+                final_outcome="AST scan PASS. Type soundness strictly verified with zero dynamic casts.",
+                embedding=[0.20, 0.18, 0.96, 0.10],
+                created_at=datetime.now(UTC),
+                metadata={"tool": "ast_scan", "duration_ms": 45.0, "tags": ["typescript", "ast", "type_soundness"]},
+            ),
+            EpisodicMemoryRecord(
+                memory_id="ep_opa_policy_audit",
+                actor_id="usr_silicon_dev_01",
+                agent_id="autonomous_auditor_01",
+                cost_centre_id="cc_security_audit",
+                session_id="sess_opa_004",
+                task_prompt="Audit composite key RFC URN formatting and OPA tool execution policy bounds",
+                final_outcome="Verified 12 policy rules across 4 packages. Zero invariant violations detected.",
+                embedding=[0.08, 0.12, 0.15, 0.98],
+                created_at=datetime.now(UTC),
+                metadata={"tool": "opa_eval", "duration_ms": 18.3, "tags": ["opa", "security", "audit"]},
+            ),
+        ]
+        for rec in initial_records:
+            asyncio.run(shared_store.store_record(rec))
+        st.session_state["episodic_memory_store"] = shared_store
+
+    store: InMemoryVectorMemoryStore = st.session_state["episodic_memory_store"]
+
+    col_ins, col_search = st.columns([1, 1])
+
+    with col_ins:
+        st.markdown("### 📥 Record New Episodic Memory")
+        with st.form("insert_memory_form"):
+            new_mem_id = st.text_input("Memory ID", value=f"ep_run_{int(time.time())}")
+            new_task_prompt = st.text_area("Task Prompt", value="Benchmark sparse attention arithmetic intensity")
+            new_outcome = st.text_area("Final Outcome", value="Executed in Monty: 4.8 FLOP/Byte intensity, optimal cache hits.")
+            new_tool = st.text_input("Executed Tool", value="profile_tensor_kernel")
+            new_duration = st.number_input("Duration (ms)", min_value=1.0, max_value=10000.0, value=85.0)
+            new_tags_raw = st.text_input("Tags (comma-separated)", value="sparse_attention, monty, profiling")
+
+            st.caption("Embedding Vector (4D float array):")
+            e1 = st.slider("Dimension 1 (Compute)", 0.0, 1.0, 0.85, 0.05)
+            e2 = st.slider("Dimension 2 (Bandwidth)", 0.0, 1.0, 0.35, 0.05)
+            e3 = st.slider("Dimension 3 (Type / AST)", 0.0, 1.0, 0.15, 0.05)
+            e4 = st.slider("Dimension 4 (Policy / Security)", 0.0, 1.0, 0.05, 0.05)
+
+            submitted = st.form_submit_button("💾 Insert Episodic Record")
+            if submitted:
+                tags = [t.strip() for t in new_tags_raw.split(",") if t.strip()]
+                new_record = EpisodicMemoryRecord(
+                    memory_id=new_mem_id.strip(),
+                    actor_id=actor_id,
+                    agent_id=agent_id_input,
+                    cost_centre_id=cost_centre_id,
+                    session_id=session_id,
+                    task_prompt=new_task_prompt.strip(),
+                    final_outcome=new_outcome.strip(),
+                    embedding=[e1, e2, e3, e4],
+                    created_at=datetime.now(UTC),
+                    metadata={"tool": new_tool, "duration_ms": new_duration, "tags": tags},
+                )
+                asyncio.run(store.store_record(new_record))
+                st.success(f"Episodic memory record `{new_mem_id}` inserted into in-process store!")
+
+    with col_search:
+        st.markdown("### 🔎 Vector Similarity Search & Ranking")
+
+        st.caption("Target Query Embedding (4D feature coordinates):")
+        q_compute = st.slider("Query Dimension 1 (Compute Affinity)", 0.0, 1.0, 0.90, 0.05)
+        q_bw = st.slider("Query Dimension 2 (Bandwidth Affinity)", 0.0, 1.0, 0.20, 0.05)
+        q_ast = st.slider("Query Dimension 3 (Type/AST Affinity)", 0.0, 1.0, 0.10, 0.05)
+        q_pol = st.slider("Query Dimension 4 (Policy/Security Affinity)", 0.0, 1.0, 0.05, 0.05)
+
+        col_param1, col_param2 = st.columns(2)
+        with col_param1:
+            top_k_val = st.slider("Top K Matches", min_value=1, max_value=10, value=3)
+        with col_param2:
+            threshold_val = st.slider("Min Cosine Similarity", min_value=-1.0, max_value=1.0, value=0.20, step=0.05)
+
+        filter_cost_centre = st.checkbox("Filter by Active Cost Centre", value=False)
+        target_cc = cost_centre_id if filter_cost_centre else None
+
+        query_req = MemoryQueryRequest(
+            query_embedding=[q_compute, q_bw, q_ast, q_pol],
+            top_k=top_k_val,
+            similarity_threshold=threshold_val,
+            cost_centre_id=target_cc,
+        )
+
+        with logfire.span("microworld.vector_memory_search", top_k=top_k_val, threshold=threshold_val):
+            search_results = asyncio.run(store.search_similar(query_req))
+
+        st.markdown(f"#### Ranked Matches ({len(search_results)} found)")
+        if not search_results:
+            st.info("No records matched the cosine similarity threshold or filters.")
+        else:
+            for rank, item in enumerate(search_results, start=1):
+                rec = item.record
+                score = item.similarity_score
+                with st.container(border=True):
+                    c_h1, c_h2 = st.columns([3, 1])
+                    c_h1.markdown(f"**#{rank}: `{rec.memory_id}`** — *Agent: `{rec.agent_id}`*")
+                    c_h2.metric("Similarity", f"{score:.4f}")
+
+                    st.markdown(f"**Task Prompt:** {rec.task_prompt}")
+                    st.markdown(f"**Outcome:** {rec.final_outcome}")
+                    st.caption(
+                        f"Actor: `{rec.actor_id}` | Cost Centre: `{rec.cost_centre_id}` | "
+                        f"Tool: `{rec.metadata.get('tool')}` | Tags: `{rec.metadata.get('tags')}`"
+                    )
+                    st.code(f"Embedding: {rec.embedding}", language="python")
+
+    st.divider()
+    st.markdown("### 📋 All In-Memory Episodic Records in Active Store")
+    all_records = list(store._records.values())
+    table_data = [
+        {
+            "Memory ID": r.memory_id,
+            "Agent ID": r.agent_id,
+            "Cost Centre": r.cost_centre_id,
+            "Tool": r.metadata.get("tool", "N/A"),
+            "Duration (ms)": r.metadata.get("duration_ms", 0.0),
+            "Task Prompt": r.task_prompt[:50] + ("..." if len(r.task_prompt) > 50 else ""),
+            "Vector": str([round(x, 2) for x in r.embedding]),
+            "Created At": r.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        }
+        for r in all_records
+    ]
+    st.dataframe(pd.DataFrame(table_data), width="stretch", hide_index=True)
+
+
+# -------------------------------------------------------------
+# TAB 9: Self-Healing Test Harness
 # -------------------------------------------------------------
 with tab_autofix:
     st.subheader("Autonomous Self-Healing Verification Lab")

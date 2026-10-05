@@ -1,0 +1,28 @@
+{{- if .Values.cnpgPostgres.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Release.Name }}-cnpg-postgres
+  labels:
+    app.kubernetes.io/name: cnpg-postgres
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  instances: {{ .Values.cnpgPostgres.instances | default 2 }}
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.1
+  postgresql:
+    parameters:
+      shared_buffers: 256MB
+      max_connections: "200"
+    shared_preload_libraries:
+      - "vector"
+  bootstrap:
+    initdb:
+      database: aegis
+      owner: aegis_admin
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector;
+  storage:
+    size: {{ .Values.cnpgPostgres.storage.size | default "20Gi" }}
+  monitoring:
+    enablePodMonitor: true
+{{- end }}
