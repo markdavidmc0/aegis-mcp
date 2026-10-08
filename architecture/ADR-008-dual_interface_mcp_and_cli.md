@@ -1,7 +1,7 @@
 # ADR-008: Dual-Interface Topology: FastMCP Agent Gateway & Typer Platform Cockpit
 
 * **Date:** 2026-10-08  
-* **Status:** PROPOSED (TARGET: v0.0.1-BETA)  
+* **Status:** RATIFIED (TARGET: v0.1.0-ALPHA)  
 * **Context:**
   Section 9 of `spec_v0-0-1-alpha.md` defined only four minimal FastMCP tool stubs (`aegis_acquire_lease`, `aegis_read_ast_skeleton`, `aegis_query_facet`, `aegis_slice_blob`) and listed a one-sentence placeholder for a CLI (`src/interfaces/cli.py`).
   

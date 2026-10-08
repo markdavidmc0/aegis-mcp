@@ -34,6 +34,12 @@ However, a critical review reveals **six major structural gaps and omission vect
 | **8. Multi-Domain Generalization & Concurrency** | **Sections 4, 6, 7:** Hardcodes Python filesystem paths (`FileLease`), stdlib `ast`, and static conflict coloring. | **Domain Lock-In & Naive Scheduling.** Cannot govern non-code org agents (Finance, Legal, Ops); performs static mutex checks rather than speculative solution-space optimization. | Generalize `ResourceLease` URNs, pluggable `DomainVerifier` harnesses, and speculative tree search (ADR-006). |
 | **9. Dual-Track Evals Architecture** | **Section 8:** Naive 4-parameter method (`evaluate_task(...)`) hardcoding Python/ruff exit codes. | **Missing EvalOps & Benchmark Harness.** Conflates inner-loop runtime task gating with offline agent capability benchmarking; lacks standardized dataset grading. | Unify runtime `GraderPipeline` with the CLI `vault` benchmark eval engine (`DeterministicVerifier`, `FormatSchema`, `Guardrail`, `SpecIntent`, `TelemetryBudget`). |
 | **10. Dual-Interface Surface Architecture** | **Section 9:** Bare 4-tool snippet with zero command-line interface specifications. | **Interface Role Confusion & Blind Execution.** Fails to distinguish between autonomous LLM agent consumers (JSON-RPC) and human/CI operators (shell/POSIX); lacks lease release and targeted verifier tool primitives. | Partition into FastMCP Agent Gateway (7 tools across Concurrency, Context, Execution) and Typer Platform Cockpit (5 command groups: session, context, policy, eval, serve) (ADR-008). |
+| **11. Pluggable Agent Harness Architecture** | **Section 1, 4, 7:** Treats inner agent loop as an abstract black box with mock steps in `src/orchestrator/runtime.py`. | **Harness Lock-In vs. Zero Governance.** Bespoke harnesses suffer high maintenance liability from LLM schema churn; "server-only" BYOH lacks out-of-the-box headless execution for CI/CD and unattended builds (`v build`). | Adopt "Kernel vs. Shell" topology: Aegis Control Plane as unbypassable zero-trust Kernel, Pydantic AI/LiteLLM as native headless Shell (`aegis run`), FastMCP as open external Shell (ADR-009). |
+| **12. Durable Execution & Telemetry Continuity** | **Section 3 & 4:** Ephemeral in-memory queue without persistent checkpoints or replay. | **Catastrophic State Loss & Non-Idempotency.** Crashes on Turn 18/25 forfeit entire token budgets; spans lack distributed W3C `traceparent` propagation across async queues and sandboxes. | Event-sourced turn snapshots (`TaskCheckpointRecord`), tool-call memoization/replay keys, and mandatory unified Pydantic Logfire distributed tracing (ADR-010). |
+| **13. Omnichannel Edge & Mobile Sync** | **Section 1 & 9:** Confined to local desktop IDE and terminal CLI surfaces. | **Desktop Siloing & Frozen HITL Escalations.** Mobile engineers cannot review diffs, approve escalations from Slack, or sync state smoothly with PC workstations. | Slack Socket Mode interactive Block Kit approval bot, SSE/WebSocket RFC 6902 JSON patch streams, and cross-device monotonic vector reconciliation (ADR-011). |
+| **14. Workspace Isolation & Branch Hygiene** | **Section 4 & 5:** Mutates files directly in the developer's working directory. | **Working Directory Contamination & Race Conditions.** Multi-agent concurrent execution dirties human stashes, compiler caches, and active IDE files. | Ephemeral Git Worktree virtualization (`src/orchestrator/worktree.py`), branch sandboxing, and atomic fast-forward certification merges (ADR-012). |
+| **15. Advanced Quality Gating & Anti-Fraud** | **Section 8:** Relies solely on deterministic exit codes and naive single-judge rubric scoring. | **Tautological Test Fraud & Sycophancy.** Agents write vacuous assertions (`assert True`) to pass TDD gates; single LLM judges miss subtle regressions. | LLM-assisted mutation testing (anti-tautology filter) and Critic-Debater multi-agent Jev arbitration (ADR-013). |
+| **16. Jason Liu Context Engineering Rigor** | **Section 6:** Unstructured conversation truncation and naive summarization triggers. | **Semantic Information Loss & Prompt Bloat.** Free-form chat summarization loses exact variable types, negative constraints, and discovered invariants. | Jason Liu typed delta compaction (`SessionDistillation`), strict Pydantic v2 boundary extraction, and progressive AST disclosure (ADR-014). |
 
 ---
 
@@ -124,29 +130,87 @@ However, a critical review reveals **six major structural gaps and omission vect
     * `aegis eval [run]` (Golden benchmark execution with Logfire spans & CI exit codes)
     * `aegis serve [mcp|control-plane]` (Local `stdio` and network `sse` daemons)
 
+### Gap 11: Pluggable Agent Harness Topology (The Kernel vs. Shell Architecture)
+* **Deficiency in Spec (Section 1, 4 & 7):** The spec models governance boundaries (blackboard phases, lease locks, OPA rules, verifiers) but treats the inner agent reasoning loop (prompt assembly $\rightarrow$ LLM inference $\rightarrow$ tool call parser $\rightarrow$ retry cycle) as an abstract black box. In the existing codebase, `src/orchestrator/runtime.py` implements a simulated step artifact generator (`_execute_agent_steps`).
+* **Vulnerability & Strategic Risk:**
+  1. **Proprietary Harness Trap (Option A):** Writing an in-house ReAct/reflection loop and streaming parser creates massive ongoing maintenance drag as frontier LLMs frequently alter reasoning formats (`<thought>`), tool-calling schemas, and streaming endpoints.
+  2. **Server-Only Drift (Option B):** Forcing users to bring their own agent harnesses (BYOH) breaks headless CI/CD, background tickets, and unattended builds (`v build`). Unguided third-party loops drift from `TaskBlackboard` phase transitions or burn token budgets in infinite loops.
+* **Correction Insight (Codified in ADR-009):**
+  - Adopt the **"Kernel vs. Shell" Architecture**:
+    * **The Kernel (Aegis Control Plane):** Governs mutual exclusion (`FileLeaseManager`), phase transitions (`TaskBlackboard`), security invariants (`OPAPolicyEngine`), and quality gates (`GraderPipeline`). Agnostic to which engine generates tokens.
+    * **The Native Shell (Built-In Turn-Key Runner):** Lightweight Pydantic AI / LiteLLM execution loop in `src/orchestrator/runtime.py` invoked via `aegis run`. Automatically transitions `TaskBlackboard` through `ANALYSIS` $\rightarrow$ `TDD_INNER_LOOP` $\rightarrow$ `EVALUATING` and enforces 25-turn ceilings out of the box.
+    * **The Open Shell (Ecosystem Gateway):** First-class FastMCP interface (`aegis serve mcp --transport stdio|sse`) enabling external harnesses (OpenCode, Cursor, Zed, Claude Code, InceptOS Canvas) to drive tasks while constrained by Kernel policies.
+
+### Gap 12: Durable Execution, Event-Sourced Agent Replay, and Unified Logfire Observability
+* **Deficiency in Spec (Section 3 & 4):** State persistence relies on an ephemeral in-memory dictionary or queue stub without structured turn checkpoints or replay mechanics. Distributed trace propagation is omitted.
+* **Vulnerability:** If an agent encounters a host crash, network drop, or pod eviction on turn 18 of 25, all accumulated context is obliterated. Re-running the task wastes large LLM token budgets and risks executing non-idempotent tool mutations multiple times. Furthermore, spans across async queues and sandboxes fail to correlate without W3C `traceparent` propagation.
+* **Correction Insight (Codified in ADR-010):**
+  - **Event-Sourced Checkpointing:** Persist atomic turn snapshots (`TaskCheckpointRecord`) to a Postgres write-ahead event log after each reasoning cycle.
+  - **Tool-Call Memoization & Replay:** Compute deterministic SHA-256 idempotency keys for all tool executions. Upon session resumption, past turns and tool results are instantaneously replayed in microseconds without LLM calls or duplicate side effects.
+  - **Mandatory Pydantic Logfire Standard:** Enforce Logfire as the universal operational telemetry fabric across all processes, injecting/extracting W3C `traceparent` headers across async queues, FastMCP requests, and gVisor sandboxes.
+
+### Gap 13: Omnichannel Edge Sync: Slack Mobile Ingress & Cross-Device Collaboration
+* **Deficiency in Spec (Section 1 & 9):** Interfaces are strictly localized to desktop IDEs and command-line terminals. There is no mobile ingress or asynchronous human-in-the-loop (HITL) communication bridge.
+* **Vulnerability:** When an agent requires human intervention (policy denials, lease escalations, dangerous tool approval), desktop engineers who are away from their workstation cannot unblock the agent, leaving long-horizon pipelines indefinitely stalled. Mobile web views also desynchronize from PC desktop sessions.
+* **Correction Insight (Codified in ADR-011):**
+  - **Slack Socket Mode Gateway (`src/interfaces/slack_gateway.py`):** Interactive Block Kit approval cards sent directly to Slack channels/DMs. Operators can inspect diffs and approve, reject, or steer agent trajectories from the Slack mobile application.
+  - **RFC 6902 Patch Streams over SSE / WebSockets:** Broadcast state mutations in real time to both PC IDEs and mobile PWAs with sub-100ms latency.
+  - **Monotonic Version Reconciliation:** Optimistic mutations from mobile devices are validated against monotonic blackboard revision numbers ($v_k$) to prevent concurrent write collisions.
+
+### Gap 14: Workspace Isolation, Branch Hygiene, and Git Worktree Virtualization
+* **Deficiency in Spec (Section 4 & 5):** Assumes file leases operate directly on the primary working directory of the developer's repository.
+* **Vulnerability:** Multi-agent speculative runs or concurrent developer-agent iterations step on compiler artifacts (`.venv`, `node_modules`, `target/`), corrupt unstaged user edits in Cursor/Zed, and leave dirty files on failed or aborted tasks.
+* **Correction Insight (Codified in ADR-012):**
+  - **Ephemeral Git Worktree Engine (`src/orchestrator/worktree.py`):** Automatically provisions an isolated git worktree per session (`.aegis/worktrees/task-{session_id}`).
+  - **Zero-Pollution Execution:** Agents read context, edit code, and run tests inside their private worktree. Only diffs passing 100% of the `GraderPipeline` are staged and fast-forward merged into the target integration branch. Failed sessions are wiped cleanly without touching developer workspaces.
+
+### Gap 15: Advanced Quality Gating: Critic-Debater Jev Arbitration & Mutation Testing
+* **Deficiency in Spec (Section 8):** Gating relies entirely on raw exit codes (`pytest`, `ruff`) and single-judge scoring, omitting `vault`'s advanced Jev completions and frontier AI engineering patterns.
+* **Vulnerability:** Agents frequently cheat TDD gates by writing tautological assertions (`assert True`) or vacuous tests that pass even when the implementation is broken. Single LLM judges suffer from sycophancy bias and miss edge-case regressions.
+* **Correction Insight (Codified in ADR-013):**
+  - **LLM Mutation Testing:** Injects programmatic AST mutations (operator flipping, inverted returns) into the new implementation code. If the newly written tests still pass against mutated code, they are flagged as fraudulent/tautological and rejected.
+  - **Critic-Debater Arbitration (Jev Master):** Structured three-party evaluation where a Hostile Critic agent searches for regressions, a Builder Advocate defends choices against the spec, and the Jev Master Arbitrator emits calibrated scores (`spec_coverage_prob >= 0.90`, `regression_risk_prob <= 0.15`, `quality_score >= 4`).
+
+### Gap 16: Jason Liu-Compliant Context Engineering (Typed Delta Compaction)
+* **Deficiency in Spec (Section 6):** Unstructured conversation compaction and naive chat history summarization.
+* **Vulnerability:** Narrative LLM summaries drop exact type signatures, negative constraints, tested hypotheses, and discovered invariants, causing severe attention degradation by Turn 15–20.
+* **Correction Insight (Codified in ADR-014):**
+  - **Typed Delta Compaction:** Replaces narrative summaries with strict Pydantic v2 state models (`SessionDistillation`) capturing `hypotheses_tested`, `discovered_invariants`, `failed_approaches`, and `active_target_files`.
+  - **Context Reset & Re-Injection:** When $H_{\text{ctx}} < 0.35$, raw message history is flushed and the working prompt is re-initialized with the raw system prompt + typed distillation, restoring $H_{\text{ctx}} \to 1.0$ with zero semantic data loss.
+
 ---
 
 ## 4. Remediation Action Plan (Prioritized for Execution)
 
 ```mermaid
 flowchart TD
-    subgraph P1 ["Priority 1: Policy & Sandboxing"]
-        R1["Expand policies/aegis_guardrails.rego with Tool ABAC"]
-        R2["Enforce Downscoped external_lookup in worker.py"]
-        R3["Formalize Dual-Tier Sandbox (Monty + gVisor)"]
+    subgraph Alpha ["v0.1.0-ALPHA: Self-Hosting Developer Kernel"]
+        direction TB
+        R1["OPA Guardrails & Tool ABAC"]
+        R2["Monty downscoped external_lookup"]
+        R3["Dual-Tier Sandbox: Monty + gVisor"]
+        R4["Failover Router & Model Tiers"]
+        R5["Blackboard State Machine & FileLeaseManager"]
+        R9["Dual-Interface: FastMCP + Typer CLI (ADR-008)"]
+        R10["Pydantic AI Native Harness Shell (ADR-009)"]
+        R11["Durable Turn Checkpoints & W3C Logfire (ADR-010)"]
+        R13["Ephemeral Git Worktree Virtualization (ADR-012)"]
+        R15["Jason Liu Typed Delta Compaction (ADR-014)"]
+        R1 --> R2 --> R3 --> R5 --> R9 --> R10 --> R13 --> DOGFOOD["Self-Hosting Development Loop ('aegis run')"]
     end
 
-    subgraph P2 ["Priority 2: Infrastructure & Generalization"]
-        R4["Wire failover_router.py into Task Execution"]
-        R5["Bifurcate Memory: BlobVault (CAS) + PGVector (Episodic)"]
-        R6["Bridge Keycloak OIDC to AegisUrn Identity Context"]
-        R7["Generalize ResourceLeases & Pluggable Domain Verifiers (ADR-006)"]
-        R8["Unify Dual-Track GraderPipeline with Vault Evals (ADR-007)"]
-        R9["Codify Dual-Interface FastMCP & Typer Cockpit (ADR-008)"]
+    subgraph Beta ["v0.2.0-BETA: Omnichannel & Multimodal Platform"]
+        direction TB
+        R_MULTI["Gemma 2 Multimodal: Voice, Sketch-to-AST & Visual Regressions (ADR-004)"]
+        R_TEMP["Stateful Temporal Policies & Rate Limits (ADR-005)"]
+        R7["Polymorphic ResourceLeases & Tree Search (ADR-006)"]
+        R8["Vault Golden Benchmark EvalOps Harness (ADR-007)"]
+        R12["Slack Socket Mode & Live RFC 6902 Sync (ADR-011)"]
+        R14["Jev Critic-Debater & AST Mutation Testing (ADR-013)"]
     end
 
-    P1 --> P2
-    P2 --> VERIFY["Execute Dual Quality Gates (208+ Tests Green)"]
+    Alpha ==> Beta
+    Beta --> VERIFY["Enterprise Cluster & Omnichannel Release"]
 ```
 
 ### Pre-Flight Verification Invariant

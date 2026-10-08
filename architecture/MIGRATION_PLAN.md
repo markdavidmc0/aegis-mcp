@@ -16,12 +16,24 @@ The repository already contains mature, tested infrastructure that `spec - v0-0-
 - **Episodic memory & learning:** PGVector store with cosine similarity ranking and an arXiv Paper Scout.
 - **Telemetry hierarchy:** OpenTelemetry GenAI spans enriched with agent hierarchy and 4-tuple attribution feeding native Perses dashboards.
 
-Conversely, `spec - v0-0-1-alpha.md` introduces missing execution-governance guarantees:
+Conversely, `spec - v0-0-1-alpha.md` and subsequent ADRs introduce essential execution-governance guarantees:
 - **Formal state machine:** monotonic `ExecutionPhase` transitions on `TaskBlackboard`.
 - **Atomic concurrency control:** `FileLeaseManager` with lease URNs, TTL eviction, and conflict detection.
 - **Static context bounds:** stdlib `ASTProjector` symbol digest, $H_{\text{ctx}}$ context health metric, and Content-Addressed `BlobVault`.
 - **Parallel scheduling:** Welsh-Powell graph-coloring conflict partitioner (`ConflictGraphDAGScheduler`).
 - **4-tier quality gating:** `GraderPipeline` validating linter, verifier, AST complexity, intent score, and turn budgets.
+
+### The Milestone Boundary Invariant: Alpha vs. Beta
+To enable immediate, confident self-hosting and dogfooding of the developer workflow without risking infinite migration delays, the platform strictly segregates capabilities into two discrete milestone rings:
+
+1. **v0.1.0-ALPHA (The Self-Hosting Autonomous Developer Kernel):**
+   - Goal: Allow the developer to move all daily coding workflows completely into Aegis MCP (`aegis run`).
+   - Scope: ADR-001 (Dual-tier Sandboxes), ADR-002 (Zero-trust OPA), ADR-003 (Blackboard & Leases), ADR-008 (FastMCP Gateway & Typer CLI), ADR-009 (Pydantic AI Native Shell), ADR-010 (Durable Checkpoints & Logfire Traces), ADR-012 (Git Worktree Virtualization), ADR-014 (Jason Liu Typed Delta Compaction).
+   - Invariant: Zero external cluster dependencies, stdlib + Pydantic v2 + SQLite/Postgres local persistence. Developer's active working directory is completely isolated via ephemeral git worktrees.
+
+2. **v0.2.0-BETA (The Distributed Omnichannel & Multimodal Platform):**
+   - Goal: Enterprise-scale multi-user orchestration, cross-modal design-to-code synthesis, and remote steering.
+   - Scope: ADR-004 (Gemma 2 Multimodal Inception: Voice, Sketch-to-AST, Visual UI verification), ADR-005 (Stateful temporal policy & rate limits), ADR-006 (Polymorphic multi-domain leases & Tree Search), ADR-007 (Vault Golden Benchmark EvalOps engine), ADR-011 (Slack Socket Mode mobile ingress & RFC 6902 live patch streams), ADR-013 (Jev Critic-Debater arbitration & AST mutation testing).
 
 ### The Anti-Regression Invariant
 **We do not overwrite existing modules with bare stubs.** We converge by extending existing contracts, preserving backward compatibility with `AgentCompositeKey`, `UserContext`, and `ModelFailoverPolicy`.
@@ -237,11 +249,23 @@ flowchart TD
 - **Actions:**
   1. Register the new MCP tools on FastMCP:
      - `aegis_acquire_lease`
+     - `aegis_release_lease`
      - `aegis_read_ast_skeleton`
+     - `aegis_query_facet`
      - `aegis_slice_blob`
-     - `aegis_evaluate_task`
+     - `aegis_execute_code`
+     - `aegis_run_verifier`
   2. Update Streamlit `demo_ui.py` to add a "Task Blackboard & Concurrency" tab demonstrating live lease locks and conflict prevention.
   3. Execute full dual-gate verification.
+
+### Phase 8: Autonomous Developer Self-Hosting Enablers (Alpha Completion Ring)
+- **Files:** `src/orchestrator/runtime.py`, `src/orchestrator/worktree.py`, `src/orchestrator/checkpoint.py`, `src/context/distillation.py`, `src/interfaces/cli.py`
+- **Actions:**
+  1. **ADR-009 (Native Shell):** Replace mock step simulator in `src/orchestrator/runtime.py` with an opinionated Pydantic AI / LiteLLM execution loop driving `TaskBlackboard` phase transitions.
+  2. **ADR-012 (Git Worktree Virtualization):** Implement `src/orchestrator/worktree.py` to provision `.aegis/worktrees/task-{id}` on every task, protecting the developer's working directory.
+  3. **ADR-010 (Durable Checkpoints & W3C Logfire):** Implement SQLite/Postgres turn checkpointing in `src/orchestrator/checkpoint.py` with tool-call idempotency keys and W3C `traceparent` headers.
+  4. **ADR-014 (Jason Liu Typed Compaction):** Implement `src/context/distillation.py` using `SessionDistillation` when $H_{\text{ctx}} < 0.35$.
+  5. **CLI Entry Point:** Expose `aegis run "<prompt>"` in `src/interfaces/cli.py` to complete the dogfooding loop.
 
 ---
 
