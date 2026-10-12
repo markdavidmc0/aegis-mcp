@@ -31,9 +31,9 @@ To enable immediate, confident self-hosting and dogfooding of the developer work
    - Scope: ADR-001 (Dual-tier Sandboxes), ADR-002 (Zero-trust OPA), ADR-003 (Blackboard & Leases), ADR-008 (FastMCP Gateway & Typer CLI), ADR-009 (Pydantic AI Native Shell), ADR-010 (Durable Checkpoints & Logfire Traces), ADR-012 (Git Worktree Virtualization), ADR-014 (Jason Liu Typed Delta Compaction).
    - Invariant: Zero external cluster dependencies, stdlib + Pydantic v2 + SQLite/Postgres local persistence. Developer's active working directory is completely isolated via ephemeral git worktrees.
 
-2. **v0.2.0-BETA (The Distributed Omnichannel & Multimodal Platform):**
-   - Goal: Enterprise-scale multi-user orchestration, cross-modal design-to-code synthesis, and remote steering.
-   - Scope: ADR-004 (Gemma 2 Multimodal Inception: Voice, Sketch-to-AST, Visual UI verification), ADR-005 (Stateful temporal policy & rate limits), ADR-006 (Polymorphic multi-domain leases & Tree Search), ADR-007 (Vault Golden Benchmark EvalOps engine), ADR-011 (Slack Socket Mode mobile ingress & RFC 6902 live patch streams), ADR-013 (Jev Critic-Debater arbitration & AST mutation testing).
+2. **v0.2.0-BETA (The Distributed Omnichannel, Multimodal & Swarm Platform):**
+   - Goal: Enterprise-scale multi-user orchestration, cross-modal design-to-code synthesis, remote steering, and accelerated swarm execution across solution-centric assets.
+   - Scope: ADR-004 (Gemma 2 Multimodal Inception: Voice, Sketch-to-AST, Visual UI verification), ADR-005 (Stateful temporal policy & rate limits), ADR-006 (Polymorphic multi-domain leases & Tree Search), ADR-007 (Vault Golden Benchmark EvalOps engine), ADR-011 (Slack Socket Mode mobile ingress & RFC 6902 live patch streams), ADR-013 (Jev Critic-Debater arbitration & AST mutation testing), ADR-020 (Solution-Centric Digital Asset Governance & Agent Swarm Acceleration), ADR-021 (Enterprise Infrastructure Topology, Bifurcated Live Monitoring & Low-Code Golden Evals).
 
 ### The Anti-Regression Invariant
 **We do not overwrite existing modules with bare stubs.** We converge by extending existing contracts, preserving backward compatibility with `AgentCompositeKey`, `UserContext`, and `ModelFailoverPolicy`.
@@ -167,6 +167,20 @@ Import and standardize the modular grader pipeline already established in `~/vau
   - *In-Flight Runtime Gating:* Executed at the end of `TDD_INNER_LOOP` inside `EphemeralGVisorRunner`.
   - *Offline CLI Benchmarking:* Executed via `aegis eval run --dataset evals/test_cases.json --ci` with Logfire spans (`eval.local_harness`).
 
+### 3.6 Solution-Centric Digital Asset Governance & Swarm Acceleration (ADR-020)
+**Problem in Spec:** Point-file locks (`FileLease`) fail to capture multi-file solution boundaries, while single-lane scheduling forces hierarchical swarms (`@orchestrator` $\to$ `@tdd-builder`, `@test-engineer`) to serialize tasks, inflating end-to-end latency.
+**Resolution:**
+- **Solution Asset Clusters:** Group related assets into canonical URNs (`urn:aegis:asset:solution:...`, `urn:aegis:asset:contract:...`) with immutable boundary manifests.
+- **Hierarchical Swarm Delegation:** Enable parent agents to partition solution leases and pass scoped sub-leases (`SwarmLeaseDelegation`) to worker subagents with automatic TTL expiry upon completion.
+- **Swarm Acceleration Protocol:** Non-interfering parallel dispatch across ephemeral Git worktrees, optimistic RFC 6902 patch emission, and automated AST conflict reconciliation.
+
+### 3.7 Enterprise Infrastructure Topology, Bifurcated Monitoring & Low-Code Evals (ADR-021)
+**Problem in Spec:** Relies on local unhardened single-node execution, lumps all telemetry into a single stream, and restricts golden eval authoring to Python developers.
+**Resolution:**
+- **Cloud-Native Topology:** Deploy on Kubernetes/GKE with containerd `runsc` (gVisor), CloudNativePG (`pgvector`), Envoy AI Gateway with Keycloak OIDC JWT validation, and GitOps delivery via ArgoCD.
+- **Bifurcated Live Monitoring:** Decouple infra-level cluster telemetry (Prometheus/Perses for pod health, connection pools, and container limits) from agent-level semantic traces (Logfire & OTel GenAI traces with 4-tuple attribution and waterfall bottlenecks in `dashboards/aegis_agent_overview.json`).
+- **Low-Code Golden Evals Studio:** Provide an accessible UI (`src/evaluation/golden_studio.py` / InceptOS) for domain experts to curate, dry-run, and publish regression suites (`evals/test_cases.json`) evaluated by `GraderPipeline`.
+
 ---
 
 ## 4. Phase-by-Phase Migration Blueprint
@@ -266,6 +280,20 @@ flowchart TD
   3. **ADR-010 (Durable Checkpoints & W3C Logfire):** Implement SQLite/Postgres turn checkpointing in `src/orchestrator/checkpoint.py` with tool-call idempotency keys and W3C `traceparent` headers.
   4. **ADR-014 (Jason Liu Typed Compaction):** Implement `src/context/distillation.py` using `SessionDistillation` when $H_{\text{ctx}} < 0.35$.
   5. **CLI Entry Point:** Expose `aegis run "<prompt>"` in `src/interfaces/cli.py` to complete the dogfooding loop.
+
+### Phase 9: Solution Asset Governance & Swarm Acceleration (Beta Expansion)
+- **Files:** `src/control_plane/asset_governance.py`, `src/orchestrator/swarm_coordinator.py`, `src/control_plane/lease_manager.py`
+- **Actions:**
+  1. **ADR-020 (Asset Governance):** Implement `SolutionAssetCluster` and boundary contract manifests.
+  2. **ADR-020 (Swarm Sub-Leases):** Extend `FileLeaseManager` to support hierarchical parent-child lease trees (`SwarmLeaseDelegation`).
+  3. **ADR-020 (Swarm Acceleration):** Integrate Welsh-Powell asset coloring in `SwarmCoordinator` with optimistic git worktree branches and AST conflict reconciliation.
+
+### Phase 10: Enterprise Cluster, Bifurcated Monitoring & Low-Code Golden Evals (Beta Expansion)
+- **Files:** `infra/k8s/`, `dashboards/aegis_agent_overview.json`, `src/evaluation/golden_studio.py`
+- **Actions:**
+  1. **ADR-021 (Infrastructure Topology):** Deploy KinD/GKE cluster with containerd `runsc` (gVisor), Envoy Gateway OIDC auth, and ArgoCD GitOps overlays.
+  2. **ADR-021 (Bifurcated Telemetry):** Configure Perses and Logfire dashboards separating infrastructure metrics (connection pools, pod health) from agent semantic spans with 4-tuple attribution.
+  3. **ADR-021 (Low-Code Golden Studio):** Implement low-code eval curator (`src/evaluation/golden_studio.py` and UI tab) allowing domain experts to dry-run and export golden benchmark suites (`evals/test_cases.json`).
 
 ---
 

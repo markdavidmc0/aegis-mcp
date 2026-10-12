@@ -4,13 +4,13 @@ from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+
+from src.control_plane.main import app
 from src.control_plane.policy_engine import (
     PolicyDecision,
     PolicyEngine,
     PolicyEvaluationRequest,
 )
-
-from src.control_plane.main import app
 
 DEFAULT_HEADERS = {
     "X-User-ID": "usr_policy_test_01",

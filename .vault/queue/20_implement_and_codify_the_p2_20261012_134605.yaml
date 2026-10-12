@@ -1,0 +1,98 @@
+ticket_id: implement_and_codify_the_p2_20261012_134605
+priority: 20
+prompt: "[Decomposed Sub-Task - Tier 2: Core Services & Implementation]\nImplement\
+  \ the relevant contracts and components for this tier.\n\nImplement and codify the\
+  \ Karpathy Inflection Strategic Pillars into the Aegis MCP architecture: ratify\
+  \ ADR-022 (Autonomous Decision Archaeology, Intent Decompilation, and Cognitive\
+  \ Walkthroughs) and ADR-023 (Closed-Loop RLVR Environment Engine & Synthetic Trajectory\
+  \ Distillation), and seamlessly integrate their contracts, Gaps 19 & 20, and Phases\
+  \ 11 & 12 into architecture/review_v0-0-1-alpha.md and architecture/MIGRATION_PLAN.md.\n\
+  \n\nARCHITECTURAL INVARIANTS & CONSTRAINTS:\n1. Zero Untyped Escape Hatches: All\
+  \ Python models must be strictly frozen Pydantic v2 domain schemas with model_config\
+  \ = ConfigDict(extra='forbid', frozen=True) and explicit field validators, regexes,\
+  \ and bounds.\n2. Anti-Regression & SSOT Preservation: Maintain strict backward\
+  \ compatibility with existing ADR-001 through ADR-021 contracts, AgentCompositeKey,\
+  \ TaskBlackboard, ResourceLease URNs, and the GraderPipeline. Do NOT touch code\
+  \ outside architecture/.\n3. Scope Capped: Exactly 4 TARGET_FILES. Confine all additions\
+  \ to high-fidelity architectural specifications.\n4. Language Verifier & Complexity\
+  \ Gate Alignment: All schema definitions included in the specifications must strictly\
+  \ comply with ruff max-complexity <= 10 and stdlib typing standards.\n\nSPECIFICATION\
+  \ DETAILS:\n\n1. Create architecture/ADR-022-decision_archaeology_and_cognitive_walkthroughs.md\n\
+  - Title: ADR-022: Autonomous Decision Archaeology, Intent Decompilation, and Cognitive\
+  \ Walkthroughs\n- Status: RATIFIED (TARGET: v0.2.0-BETA)\n- Context:\n  * Andrej\
+  \ Karpathy's Tier 4 paradox: As autonomous agent swarms collaborate over long horizons\
+  \ across isolated Git worktrees (ADR-012, ADR-020), code generation throughput vastly\
+  \ outstrips human cognitive bandwidth.\n  * The 'Codebase Alienation' Hazard: Traditional\
+  \ pull request review mechanisms (raw git diffs, Slack Block Kit [Approve]/[Reject]\
+  \ buttons from ADR-011) induce cognitive paralysis on 1,500+ line multi-worktree\
+  \ changes. Engineers rubber-stamp diffs because tests pass, completely losing the\
+  \ architectural mental model of their own codebase.\n  * Need: A deterministic protocol\
+  \ to 'decompile' complex multi-agent execution histories into 60-second interactive\
+  \ cognitive walkthroughs and decision DAGs.\n- Decision:\n  * DecisionArchaeologyEngine\
+  \ (src/context/archaeology.py): Ingests TaskCheckpointRecord WAL traces (ADR-010)\
+  \ and Jason Liu SessionDistillation models (ADR-014) to synthesize an interactive\
+  \ DecisionArchaeologyGraph.\n  * Pydantic v2 Schema:\n    class DecisionHypothesisNode(BaseModel):\n\
+  \        model_config = ConfigDict(extra='forbid', frozen=True)\n        node_id:\
+  \ str\n        specialist_role: str\n        turn_index: int = Field(ge=1, le=25)\n\
+  \        hypothesis_description: str\n        attempted_approach: str\n        outcome_status:\
+  \ Literal['PROVEN', 'DISPROVEN', 'SUPERSEDED']\n        discarded_reason: str |\
+  \ None = None\n        ast_symbol_targets: list[str]\n        verification_trace_ref:\
+  \ str | None = None\n\n    class CognitiveWalkthroughDigest(BaseModel):\n      \
+  \  model_config = ConfigDict(extra='forbid', frozen=True)\n        session_id: str\n\
+  \        root_intent_summary: str\n        total_turns_analyzed: int\n        decision_dag:\
+  \ list[DecisionHypothesisNode]\n        critical_tradeoffs_made: list[dict[str,\
+  \ str]]\n        invariants_discovered: list[str]\n        architectural_impact_score:\
+  \ int = Field(ge=1, le=5)\n        interactive_playback_stream_urn: str\n  * InceptOS\
+  \ Public Spatial Workbench Integration: Project the decision DAG into InceptOS 3D\
+  \ WebXR and reactive React Flow canvases via RFC 6902 JSON Patches. Human architects\
+  \ scrub through turn-by-turn hypothesis branches, visualizing why code was rejected\
+  \ before landing on the final atomic fast-forward diff.\n  * Alternatives Rejected:\
+  \ Raw git diff reviews (causes reviewer burnout/alienation); LLM conversational\
+  \ chat summaries (lossy, hallucination-prone).\n\n2. Create architecture/ADR-023-rlvr_synthetic_trajectory_distillation_engine.md\n\
+  - Title: ADR-023: Closed-Loop RLVR Environment Engine & Synthetic Trajectory Distillation\n\
+  - Status: RATIFIED (TARGET: v0.2.0-BETA)\n- Context:\n  * Karpathy's RLVR Principle:\
+  \ Frontier LLM reasoning explodes in domains that are digital, verifiable, and economically\
+  \ valuable (reinforcement learning on verifiable rewards).\n  * Untapped Platform\
+  \ Asset: Aegis already contains all necessary primitives for an automated RLVR factory:\
+  \ Content-Addressed Storage (BlobVault), ephemeral Git worktrees, AST mutation testing\
+  \ (ADR-013), and deterministic verifiers (pytest, cargo, ruff).\n  * Need: Transform\
+  \ failed turns, corrected mutations, and verified TDD loops into high-value synthetic\
+  \ DPO / RL fine-tuning datasets, enabling enterprise codebases to autonomously train\
+  \ proprietary, sovereign open-weights models (Gemma 2, Qwen 2.5-Coder).\n- Decision:\n\
+  \  * RLVREnvironmentHarness (src/evaluation/rlvr_distiller.py): Couples TaskBlackboard\
+  \ state transitions with GraderPipeline deterministic scoring to emit verified trajectory\
+  \ pairs.\n  * Pydantic v2 Schema:\n    class RLVRStepReward(BaseModel):\n      \
+  \  model_config = ConfigDict(extra='forbid', frozen=True)\n        step_index: int\n\
+  \        raw_reward: float = Field(ge=-1.0, le=1.0)\n        verifier_exit_code:\
+  \ int\n        ast_complexity_penalty: float = Field(ge=0.0, le=1.0)\n        mutation_kill_ratio:\
+  \ float = Field(ge=0.0, le=1.0)\n        ground_truth_passed: bool\n\n    class\
+  \ SyntheticTrajectoryRecord(BaseModel):\n        model_config = ConfigDict(extra='forbid',\
+  \ frozen=True)\n        trajectory_id: str\n        solution_urn: str\n        prompt_instruction:\
+  \ str\n        chosen_trajectory_turns: list[dict[str, Any]]\n        rejected_trajectory_turns:\
+  \ list[dict[str, Any]] | None = None\n        cumulative_reward: float = Field(ge=0.0,\
+  \ le=1.0)\n        dataset_target_format: Literal['DPO_PAIRS', 'REINFORCE_TRACES',\
+  \ 'KTO_LABELS']\n        provenance_cas_hash: str\n  * Closed-Loop Flywheel: Export\
+  \ trajectories to evals/rlvr_corpora/<domain>.jsonl with CAS content addressing.\
+  \ Integrate with local fine-tuning jobs (Unsloth / Axolotl / vLLM) so customer repositories\
+  \ autonomously build proprietary developer intelligence.\n  * Alternatives Rejected:\
+  \ Throwing away failed agent traces as dead logs; manual human labeling of code\
+  \ agent trajectories.\n\n3. Update architecture/review_v0-0-1-alpha.md\n- Add Gap\
+  \ 19: The Human Review & Comprehension Bottleneck (Codebase Alienation under Tier\
+  \ 4 Swarms) -> Codified in ADR-022.\n- Add Gap 20: The Missing RLVR Data Flywheel\
+  \ (Passive Verification vs. Active Model Training) -> Codified in ADR-023.\n- Update\
+  \ Section 2 Gap Matrix with Gaps 19 & 20.\n- Update Section 4 Remediation Mermaid\
+  \ Chart to incorporate R18 (ADR-022) and R19 (ADR-023) in the Beta ring.\n- Update\
+  \ Section 5 Strategic Positioning to reflect Karpathy's 4-tier funnel and position\
+  \ Aegis as the Industrialized Frontier Bridge between Tier 3 professionals and Tier\
+  \ 4 swarms.\n\n4. Update architecture/MIGRATION_PLAN.md\n- Update Section 1 Milestone\
+  \ Boundary Invariant to expand v0.2.0-BETA scope with ADR-022 and ADR-023.\n- Add\
+  \ Phase 11: Autonomous Decision Archaeology & Cognitive Walkthrough Studio (ADR-022)\
+  \ with concrete file paths (src/context/archaeology.py, demo_ui.py / InceptOS canvas).\n\
+  - Add Phase 12: Closed-Loop RLVR Environment Engine & Synthetic Dataset Distiller\
+  \ (ADR-023) with concrete file paths (src/evaluation/rlvr_distiller.py, cli.py aegis\
+  \ eval export-rlvr).\n- Update Section 4 Mermaid migration flow to include Phase\
+  \ 11 and Phase 12.\n\nEnsure all markdown files use proper headings, clear ASCII/Mermaid\
+  \ diagrams, and maintain the existing document style.\n\nTARGET_FILES:\n- architecture/MIGRATION_PLAN.md\n"
+target_files:
+- architecture/MIGRATION_PLAN.md
+created_at: '2026-10-12T13:46:05.552125+00:00'

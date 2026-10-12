@@ -6,6 +6,7 @@ import httpx
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
+
 from src.control_plane.failover_router import ModelFailoverPolicy, ModelFailoverRouter
 
 

@@ -40,6 +40,8 @@ However, a critical review reveals **six major structural gaps and omission vect
 | **14. Workspace Isolation & Branch Hygiene** | **Section 4 & 5:** Mutates files directly in the developer's working directory. | **Working Directory Contamination & Race Conditions.** Multi-agent concurrent execution dirties human stashes, compiler caches, and active IDE files. | Ephemeral Git Worktree virtualization (`src/orchestrator/worktree.py`), branch sandboxing, and atomic fast-forward certification merges (ADR-012). |
 | **15. Advanced Quality Gating & Anti-Fraud** | **Section 8:** Relies solely on deterministic exit codes and naive single-judge rubric scoring. | **Tautological Test Fraud & Sycophancy.** Agents write vacuous assertions (`assert True`) to pass TDD gates; single LLM judges miss subtle regressions. | LLM-assisted mutation testing (anti-tautology filter) and Critic-Debater multi-agent Jev arbitration (ADR-013). |
 | **16. Jason Liu Context Engineering Rigor** | **Section 6:** Unstructured conversation truncation and naive summarization triggers. | **Semantic Information Loss & Prompt Bloat.** Free-form chat summarization loses exact variable types, negative constraints, and discovered invariants. | Jason Liu typed delta compaction (`SessionDistillation`), strict Pydantic v2 boundary extraction, and progressive AST disclosure (ADR-014). |
+| **17. Solution-Centric Digital Asset Governance & Swarm Acceleration** | **Sections 4, 6, 7:** Point file locks and single-agent execution pipelines. | **Solution Drift & Swarm Lockouts.** Locking single files deadlocks multi-file refactors; uncoordinated agent swarms experience race conditions and high latency. | Solution asset clusters (`urn:aegis:asset:...`), boundary manifests, hierarchical sub-lease inheritance, and accelerated swarm scheduling (ADR-020). |
+| **18. Enterprise Infrastructure Topology & Bifurcated Observability** | **Sections 1, 2, 8:** Standalone host processes, monolithic telemetry, and code-only evals. | **Infrastructure Blindspots & Evals Barrier.** Conflating SRE metrics with GenAI semantic spans causes diagnostic blindness; non-engineers cannot author golden eval benchmarks. | Cloud-native Kubernetes/Envoy/CloudNativePG topology, bifurcated SRE vs. GenAI Logfire monitoring, and low-code golden evals studio (ADR-021). |
 
 ---
 
@@ -178,6 +180,22 @@ However, a critical review reveals **six major structural gaps and omission vect
   - **Typed Delta Compaction:** Replaces narrative summaries with strict Pydantic v2 state models (`SessionDistillation`) capturing `hypotheses_tested`, `discovered_invariants`, `failed_approaches`, and `active_target_files`.
   - **Context Reset & Re-Injection:** When $H_{\text{ctx}} < 0.35$, raw message history is flushed and the working prompt is re-initialized with the raw system prompt + typed distillation, restoring $H_{\text{ctx}} \to 1.0$ with zero semantic data loss.
 
+### Gap 17: Solution-Centric Digital Asset Governance & Agent Swarm Acceleration
+* **Deficiency in Spec (Section 4, 6 & 7):** Point-file mutual exclusion (`FileLease`) and isolated single-agent task scheduling.
+* **Vulnerability:** Enterprise digital assets are interconnected solutions (monorepo packages, schemas, API contracts). Locking isolated files causes deadlocks during multi-file refactors. Furthermore, hierarchical multi-agent swarms (`@orchestrator` delegating to `@tdd-builder` and `@test-engineer`) lack sub-lease inheritance, leading to race conditions and high serialized latency.
+* **Correction Insight (Codified in ADR-020):**
+  - **Solution Asset Clusters:** Elevate digital asset modeling to solution-level clusters (`urn:aegis:asset:solution:...`, `urn:aegis:asset:contract:...`) with immutable boundary manifests.
+  - **Hierarchical Swarm Sub-Leases:** Implement parent-child lease inheritance trees (`SwarmLeaseDelegation`), allowing orchestrators to partition and safely delegate scoped sub-leases to worker subagents.
+  - **Swarm Acceleration Protocol:** Multi-lane parallel scheduling across isolated Git worktrees using Welsh-Powell dependency coloring, optimistic JSON patch staging, and automated AST conflict reconciliation.
+
+### Gap 18: Enterprise Infrastructure Topology, Bifurcated Live Monitoring & Low-Code Golden Evals
+* **Deficiency in Spec (Section 1, 2 & 8):** Presumes local standalone execution, monolithic telemetry streams, and developer-only Python eval scripts.
+* **Vulnerability:** Enterprise deployment lacks a hardened, production-grade cloud topology (Kubernetes, containerd `runsc`, CloudNativePG, Envoy AI Gateway with OIDC JWT ingress, ArgoCD GitOps). Conflating infrastructure metrics (CPU, pod health) with agent reasoning traces in a single stream creates alert fatigue. Additionally, non-engineering domain experts (QA, product leads) cannot author golden benchmark evals.
+* **Correction Insight (Codified in ADR-021):**
+  - **Hardened Cloud-Native Topology:** Codify Kubernetes/GKE deployment with gVisor (`runsc`), CloudNativePG (`pgvector`), Envoy Gateway OIDC authentication, and ArgoCD GitOps overlays.
+  - **Bifurcated Live Monitoring:** Split observability into an Infra Plane (Prometheus/Perses for cluster health, queues, and database connection pools) and an Agent Intelligence Plane (Logfire & OTel GenAI distributed traces with 4-tuple attribution and Perses waterfall dashboards).
+  - **Low-Code Golden Evals Studio:** Provide an accessible, low-code interface for domain experts to curate and validate golden test suites (`evals/test_cases.json`) with instant ephemeral sandbox feedback and CI/CD gating (`aegis eval run`).
+
 ---
 
 ## 4. Remediation Action Plan (Prioritized for Execution)
@@ -199,7 +217,7 @@ flowchart TD
         R1 --> R2 --> R3 --> R5 --> R9 --> R10 --> R13 --> DOGFOOD["Self-Hosting Development Loop ('aegis run')"]
     end
 
-    subgraph Beta ["v0.2.0-BETA: Omnichannel & Multimodal Platform"]
+    subgraph Beta ["v0.2.0-BETA: Omnichannel, Multimodal & Swarm Platform"]
         direction TB
         R_MULTI["Gemma 2 Multimodal: Voice, Sketch-to-AST & Visual Regressions (ADR-004)"]
         R_TEMP["Stateful Temporal Policies & Rate Limits (ADR-005)"]
@@ -207,6 +225,8 @@ flowchart TD
         R8["Vault Golden Benchmark EvalOps Harness (ADR-007)"]
         R12["Slack Socket Mode & Live RFC 6902 Sync (ADR-011)"]
         R14["Jev Critic-Debater & AST Mutation Testing (ADR-013)"]
+        R16["Solution-Centric Asset Governance & Swarm Acceleration (ADR-020)"]
+        R17["Enterprise Infra Topology, Bifurcated Monitoring & Low-Code Evals (ADR-021)"]
     end
 
     Alpha ==> Beta

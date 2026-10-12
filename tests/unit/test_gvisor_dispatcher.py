@@ -150,9 +150,8 @@ class TestGVisorDispatcherUnit:
     @pytest.mark.asyncio
     async def test_opa_policy_evaluation_before_spawning(self) -> None:
         """Verifies OPA policy engine is evaluated prior to container/runner instantiation."""
-        from src.data_plane.gvisor_runner import EphemeralGVisorRunner
-
         from src.control_plane.policy_engine import PolicyEngine
+        from src.data_plane.gvisor_runner import EphemeralGVisorRunner
 
         mock_policy_engine = MagicMock(spec=PolicyEngine)
         from src.control_plane.schemas import PolicyDecision
